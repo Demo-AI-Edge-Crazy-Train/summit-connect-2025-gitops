@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: htpasswd-{{ trunc 8 (include "openshift-users-txt" . | sha256sum) }}
+  namespace: openshift-config
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+type: Opaque
+data:
+  htpasswd: {{ include "openshift-htpasswd" . | b64enc | quote }}
+  users.txt: {{ include "openshift-users-txt" . | b64enc | quote }}
+{{- range (include "openshift-users" . | fromJsonArray) }}
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    env: test
+  name: {{ (printf "%s-test" .) | quote }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ (printf "%s-admin" .) | quote }}
+  namespace: {{ (printf "%s-test" .) | quote }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+subjects:
+  - kind: User
+    apiGroup: rbac.authorization.k8s.io
+    name: {{ . | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+  name: {{ . | quote }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ (printf "%s-admin" .) | quote }}
+  namespace: {{ . | quote }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+subjects:
+  - kind: User
+    apiGroup: rbac.authorization.k8s.io
+    name: {{ . | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+{{- end }}
