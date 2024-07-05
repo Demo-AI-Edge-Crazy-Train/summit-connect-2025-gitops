@@ -10,6 +10,20 @@ type: Opaque
 data:
   htpasswd: {{ include "openshift-htpasswd" . | b64enc | quote }}
   users.txt: {{ include "openshift-users-txt" . | b64enc | quote }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: can-use-scc-privileged
+rules:
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - privileged
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use
 {{- range (include "openshift-users" . | fromJsonArray) }}
 ---
 kind: Namespace
@@ -76,4 +90,20 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: admin
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ (printf "%s-can-use-scc-privileged" .) | quote }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+subjects:
+  - kind: User
+    apiGroup: rbac.authorization.k8s.io
+    name: {{ . | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: can-use-scc-privileged
+
 {{- end }}
