@@ -1,7 +1,7 @@
 # Workshop Users
 
 ```sh
-helm template auth . --set masterKey=RivieraDev2024 | oc apply -f -
+helm template auth . --set masterKey=Volcamp2025 | oc apply -f -
 ```
 
 Get the name of the generated secret:
