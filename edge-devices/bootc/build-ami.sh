@@ -31,8 +31,8 @@ declare -a BOOTC_IMAGE_BUILDER_ARGS=( --type ami --aws-ami-name "$AMI_IMAGE_NAME
 
 if [ -n "${AWS_CONFIG_FILE:-}" ] && [ -f "$AWS_CONFIG_FILE" ] && [ -n "${AWS_SHARED_CREDENTIALS_FILE:-}" ] && [ -f "$AWS_SHARED_CREDENTIALS_FILE" ]; then
   echo "Using AWS config file $AWS_CONFIG_FILE"
-  echo "Using AWS shared credentials file $AWS_SHARED_CREDENTIALS_FILE"
   cp "$AWS_CONFIG_FILE" "$temp_dir/aws/config"
+  echo "Using AWS shared credentials file $AWS_SHARED_CREDENTIALS_FILE"
   cp "$AWS_SHARED_CREDENTIALS_FILE" "$temp_dir/aws/credentials"
   PODMAN_ARGS+=( "-v" "$temp_dir/aws:/root/.aws:ro" )
 elif [ -d "$HOME/.aws" ]; then

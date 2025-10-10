@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-NAME=edge-device
+NAME=bastion
 QCOW2_BACKING_IMAGE="/var/lib/libvirt/images/library/rhel-9.6-$(arch)-kvm.qcow2"
 DOMAIN_VCPUS="2"
 DOMAIN_RAM="4096"

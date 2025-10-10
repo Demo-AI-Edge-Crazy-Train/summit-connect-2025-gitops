@@ -34,6 +34,7 @@ packages:
 - rclone
 
 write_files:
+# Avoid installing weak dependencies with dnf
 - path: /etc/dnf/dnf.conf
   content: |
     [main]
