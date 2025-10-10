@@ -7,8 +7,8 @@ if [[ "$UID" -ne 0 ]]; then
   exit 1
 fi
 
-if [ "$#" -lt 3 ]; then
-  echo "Usage: $0 <ami-image-name> <aws-bucket-name> <aws-region>"
+if [ "$#" -lt 2 ]; then
+  echo "Usage: $0 <aws-bucket-name> <aws-region>"
   exit 1
 fi
 
@@ -18,9 +18,9 @@ if [ ! -f "config.toml" ]; then
 fi
 
 TARGET_IMAGE="localhost/edge-device:latest"
-AMI_IMAGE_NAME="$1"
-AWS_BUCKET_NAME="$2"
-AWS_REGION="$3"
+AMI_IMAGE_NAME="crazy-train-lab-edge-device-ami-$(date +%Y%m%d%H%M%S)"
+AWS_BUCKET_NAME="$1"
+AWS_REGION="$2"
 
 temp_dir="$(mktemp -d)"
 mkdir -p $temp_dir/{output,aws}

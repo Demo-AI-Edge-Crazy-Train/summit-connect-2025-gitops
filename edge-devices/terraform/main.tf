@@ -205,7 +205,7 @@ data "aws_ami" "bootc_ami" {
 
   filter {
     name   = "name"
-    values = ["crazy-train-lab-edge-device"]
+    values = ["crazy-train-lab-edge-device-*"]
   }
 
   filter {

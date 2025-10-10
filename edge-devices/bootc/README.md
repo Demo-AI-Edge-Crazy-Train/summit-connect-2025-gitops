@@ -130,5 +130,5 @@ envsubst < config.toml.template > config.toml
 
 ```sh
 sudo ./build-image.sh
-sudo ./build-ami.sh "crazy-train-lab-edge-device-ami" "crazy-train-lab-edge-device-ami" "eu-west-3"
+sudo ./build-ami.sh "crazy-train-lab-edge-device-ami" "eu-west-3"
 ```
