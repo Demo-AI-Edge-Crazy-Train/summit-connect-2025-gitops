@@ -20,10 +20,6 @@ variable "route53_zone" {
   type = string
 }
 
-variable "s3_bucket_name" {
-  type = string
-}
-
 data "aws_ami" "rhel" {
   most_recent = true
 

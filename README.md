@@ -1,4 +1,4 @@
-# Riviera Dev 2024 - GitOps manifests
+# Red Hat Summit Connect 2025 - GitOps manifests
 
 ## Cleanup
 
@@ -8,4 +8,3 @@ for ns in $(oc get ns -o name |grep namespace/user); do
 done
 watch sh -c 'oc get ns -o name |grep namespace/user | wc -l'
 ```
-

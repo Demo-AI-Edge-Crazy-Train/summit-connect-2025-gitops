@@ -22,5 +22,8 @@ Pre-requisites:
 ```sh
 cp cloud-init/user-data.yaml.template cloud-init/user-data.yaml # Edit the file to fill out the placeholders
 terraform init
+cat > terraform.tfvars <<EOF
+route53_zone = "sandbox1893.opentlc.com"
+EOF
 terraform apply
 ```
