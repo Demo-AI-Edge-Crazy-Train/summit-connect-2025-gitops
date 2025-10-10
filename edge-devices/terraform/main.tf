@@ -92,8 +92,8 @@ resource "aws_security_group" "lab_bastion" {
 
   ingress {
     description = "Incoming HTTP connection"
-    from_port   = 80
-    to_port     = 80
+    from_port   = 9090
+    to_port     = 9090
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -126,13 +126,13 @@ resource "aws_key_pair" "admin" {
   }
 }
 
-resource "aws_instance" "lab_rhel" {
+resource "aws_instance" "lab_bastion_ec2" {
   ami                         = data.aws_ami.rhel.id
   instance_type               = "m6g.large"
   key_name                    = aws_key_pair.admin.key_name
   subnet_id                   = aws_subnet.lab_subnet.id
   depends_on                  = [aws_internet_gateway.lab_gw]
-  vpc_security_group_ids      = [aws_security_group.lab_rhel.id]
+  vpc_security_group_ids      = [aws_security_group.lab_bastion.id]
   user_data                   = filebase64("cloud-init/user-data.yaml")
   associate_public_ip_address = true
 
@@ -145,12 +145,12 @@ resource "aws_instance" "lab_rhel" {
   }
 
   tags = {
-    Name = var.tag_name
+    Name = "${var.tag_name}-bastion"
   }
 }
 
-resource "aws_eip" "lab_eip" {
-  instance = aws_instance.lab_rhel.id
+resource "aws_eip" "lab_bastion_eip" {
+  instance = aws_instance.lab_bastion_ec2.id
   vpc      = true
 
   tags = {
@@ -163,14 +163,18 @@ data "aws_route53_zone" "lab_zone" {
   private_zone = false
 }
 
-resource "aws_route53_record" "os_builder_a_record" {
+resource "aws_route53_record" "lab_bastion_a_record" {
   zone_id = data.aws_route53_zone.lab_zone.zone_id
   name    = "crazy-train-lab.${var.route53_zone}"
   type    = "A"
   ttl     = "300"
-  records = [aws_eip.lab_eip.public_ip]
+  records = [aws_eip.lab_bastion_eip.public_ip]
 }
 
 output "public_ip" {
-  value = aws_instance.lab_rhel.public_ip
+  value = aws_instance.lab_bastion_ec2.public_ip
+}
+
+output "domain_name" {
+  value = aws_route53_record.lab_bastion_a_record.fqdn
 }
