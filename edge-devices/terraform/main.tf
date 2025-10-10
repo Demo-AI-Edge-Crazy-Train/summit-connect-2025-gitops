@@ -11,6 +11,15 @@ provider "aws" {
   region = "eu-west-3"
 }
 
+##
+## Variables
+##
+
+variable "machine_count" {
+  type    = number
+  default = 1
+}
+
 variable "tag_name" {
   type    = string
   default = "crazy-train-lab"
@@ -20,26 +29,9 @@ variable "route53_zone" {
   type = string
 }
 
-data "aws_ami" "rhel" {
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["RHEL-9.6.0_HVM-*-arm64-*-Hourly2-GP3"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["arm64"]
-  }
-
-  owners = ["309956199498"] # amazon
-}
+##
+## Common resources
+##
 
 resource "aws_vpc" "lab_vpc" {
   cidr_block           = "172.16.0.0/16"
@@ -79,6 +71,46 @@ resource "aws_route_table_association" "lab_rta" {
   route_table_id = aws_route_table.lab_route.id
 }
 
+resource "aws_internet_gateway" "lab_gw" {
+  vpc_id = aws_vpc.lab_vpc.id
+  tags = {
+    Name = var.tag_name
+  }
+}
+
+resource "aws_key_pair" "admin" {
+  key_name   = "crazy-train-lab"
+  public_key = file("~/.ssh/id_ed25519.pub")
+  tags = {
+    Name = var.tag_name
+  }
+}
+
+##
+## Bastion host
+##
+
+data "aws_ami" "rhel" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["RHEL-9.6.0_HVM-*-arm64-*-Hourly2-GP3"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["arm64"]
+  }
+
+  owners = ["309956199498"] # amazon
+}
+
 resource "aws_security_group" "lab_bastion" {
   vpc_id = aws_vpc.lab_vpc.id
 
@@ -107,26 +139,11 @@ resource "aws_security_group" "lab_bastion" {
   }
 
   tags = {
-    Name = var.tag_name
+    Name = "${var.tag_name}-bastion"
   }
 }
 
-resource "aws_internet_gateway" "lab_gw" {
-  vpc_id = aws_vpc.lab_vpc.id
-  tags = {
-    Name = var.tag_name
-  }
-}
-
-resource "aws_key_pair" "admin" {
-  key_name   = "crazy-train-lab"
-  public_key = file("~/.ssh/id_ed25519.pub")
-  tags = {
-    Name = var.tag_name
-  }
-}
-
-resource "aws_instance" "lab_bastion_ec2" {
+resource "aws_instance" "lab_bastion" {
   ami                         = data.aws_ami.rhel.id
   instance_type               = "m6g.large"
   key_name                    = aws_key_pair.admin.key_name
@@ -149,8 +166,8 @@ resource "aws_instance" "lab_bastion_ec2" {
   }
 }
 
-resource "aws_eip" "lab_bastion_eip" {
-  instance = aws_instance.lab_bastion_ec2.id
+resource "aws_eip" "lab_bastion" {
+  instance = aws_instance.lab_bastion.id
   vpc      = true
 
   tags = {
@@ -163,18 +180,89 @@ data "aws_route53_zone" "lab_zone" {
   private_zone = false
 }
 
-resource "aws_route53_record" "lab_bastion_a_record" {
+resource "aws_route53_record" "lab_bastion" {
   zone_id = data.aws_route53_zone.lab_zone.zone_id
   name    = "crazy-train-lab.${var.route53_zone}"
   type    = "A"
   ttl     = "300"
-  records = [aws_eip.lab_bastion_eip.public_ip]
+  records = [aws_eip.lab_bastion.public_ip]
 }
 
 output "public_ip" {
-  value = aws_instance.lab_bastion_ec2.public_ip
+  value = aws_instance.lab_bastion.public_ip
 }
 
 output "domain_name" {
-  value = aws_route53_record.lab_bastion_a_record.fqdn
+  value = aws_route53_record.lab_bastion.fqdn
+}
+
+##
+## Edge devices
+##
+
+data "aws_ami" "bootc_ami" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["crazy-train-lab-edge-device"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["arm64"]
+  }
+
+  owners = ["self"]
+}
+
+resource "aws_security_group" "lab_edge_device" {
+  vpc_id = aws_vpc.lab_vpc.id
+
+  ingress {
+    description = "Incoming SSH connection"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["172.16.0.0/16"]
+  }
+
+  egress {
+    description = "Outgoing connections"
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.tag_name}-edge-device"
+  }
+}
+
+resource "aws_instance" "lab_edge_device" {
+  ami                         = data.aws_ami.bootc_ami.id
+  instance_type               = "m6g.large"
+  subnet_id                   = aws_subnet.lab_subnet.id
+  vpc_security_group_ids      = [aws_security_group.lab_edge_device.id]
+  associate_public_ip_address = false
+
+  credit_specification {
+    cpu_credits = "unlimited"
+  }
+
+  root_block_device {
+    volume_size = 50
+  }
+
+  tags = {
+    Name = "${var.tag_name}-edge-device-${count.index + 1}"
+  }
+
+  count = var.machine_count
 }

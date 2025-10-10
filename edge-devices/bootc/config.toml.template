@@ -1,0 +1,36 @@
+[[customizations.files]]
+path = "/etc/ostree/auth.json"
+mode = "0600"
+user = "root"
+group = "root"
+data = """
+{
+        "auths": {
+                "${OPENSHIFT_REGISTRY}": {
+                        "auth": "${OPENSHIFT_REGISTRY_AUTH}"
+                }
+        }
+}
+"""
+
+[[customizations.files]]
+path = "/etc/flightctl/config.yaml"
+mode = "0600"
+user = "root"
+group = "root"
+data = """
+${FLIGHTCTL_CONFIG_YAML}
+default-labels:
+  lab: crazy-train
+  architecture: aarch64
+  platform: nvidia-jetson-orin
+"""
+
+[[customizations.files]]
+path = "/etc/ssh/authorized_keys/root.keys"
+mode = "0644"
+user = "root"
+group = "root"
+data = """
+${SSH_AUTHORIZED_KEYS}
+"""

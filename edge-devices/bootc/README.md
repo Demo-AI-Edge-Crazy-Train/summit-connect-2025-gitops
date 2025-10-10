@@ -61,10 +61,74 @@ aws iam put-role-policy --role-name vmimport --policy-name vmimport --policy-doc
 EOF
 ```
 
+## Fill out the configuration
+
+You will need to expose the OpenShift image registry to the edge devices. You can do this by creating a route in the OpenShift console and using the route hostname in the `config.toml` file.
+
+```sh
+oc patch config.imageregistry cluster -n openshift-image-registry --type merge -p '{"spec":{"defaultRoute":true}}'
+```
+
+Then get the route hostname.
+
+```sh
+OPENSHIFT_REGISTRY=$(oc get route -n openshift-image-registry default-route -o jsonpath='{.spec.host}{"\n"}')
+echo "OpenShift image registry is at $OPENSHIFT_REGISTRY"
+```
+
+Create a pull secret for the OpenShift registry.
+
+```sh
+oc create namespace edge-devices
+oc create serviceaccount edge-devices -n edge-devices
+OPENSHIFT_REGISTRY_TOKEN="$(oc create token edge-devices -n edge-devices --duration=$((365*24))h)"
+echo "OpenShift registry auth token is $OPENSHIFT_REGISTRY_TOKEN"
+OPENSHIFT_REGISTRY_AUTH="$(echo -n "edge-devices:$OPENSHIFT_REGISTRY_TOKEN" | base64 -w0)"
+```
+
+Give the rights to pull images from the OpenShift registry over the 40 user namespaces.
+
+```sh
+for i in $(seq 1 40); do
+  oc adm policy add-role-to-user system:image-puller system:serviceaccount:edge-devices:edge-devices -n user$i-test
+done
+```
+
+Install the flightctl CLI.
+
+```sh
+sudo dnf -y copr enable @redhat-et/flightctl fedora-42-x86_64
+sudo dnf install -y flightctl
+```
+
+Login on the flightctl API.
+
+```sh
+FLIGHTCTL_API=$(oc get route -n flightctl flightctl-api-route -o jsonpath='{.spec.host}{"\n"}')
+echo "Flightctl API is at $FLIGHTCTL_API"
+echo "Flightctl demo user password is:"
+oc get secret -n flightctl keycloak-demouser-secret -o=jsonpath='{.data.password}' | base64 -d
+flightctl login https://${FLIGHTCTL_API} --web --insecure-skip-tls-verify
+flightctl certificate request --signer=enrollment --expiration=365d --output=embedded > config.yaml
+FLIGHTCTL_CONFIG_YAML="$(cat config.yaml)"
+```
+
+Retrieve your SSH public key.
+
+```sh
+SSH_AUTHORIZED_KEYS="$(cat ~/.ssh/id_ed25519.pub)"
+```
+
+Generate the final configuration file.
+
+```sh
+export FLIGHTCTL_CONFIG_YAML SSH_AUTHORIZED_KEYS OPENSHIFT_REGISTRY OPENSHIFT_REGISTRY_AUTH
+envsubst < config.toml.template > config.toml
+```
+
 ## Build the AMI
 
 ```sh
 sudo ./build-image.sh
-cp config.toml.template config.toml # Edit config.toml to add your SSH public key, registry credentials, etc.
 sudo ./build-ami.sh "crazy-train-lab-edge-device-ami" "crazy-train-lab-edge-device-ami" "eu-west-3"
 ```

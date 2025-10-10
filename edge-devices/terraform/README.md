@@ -24,6 +24,7 @@ cp cloud-init/user-data.yaml.template cloud-init/user-data.yaml # Edit the file 
 terraform init
 cat > terraform.tfvars <<EOF
 route53_zone = "sandbox1893.opentlc.com"
+machine_count = 40
 EOF
 terraform apply
 ```
