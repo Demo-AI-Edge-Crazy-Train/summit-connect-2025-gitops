@@ -1,0 +1,67 @@
+#cloud-config
+
+# Generate a key on https://access.redhat.com/management/activation_keys
+rh_subscription:
+  activation-key: ${CLOUD_INIT_RH_ACTIVATION_KEY}
+  org: ${CLOUD_INIT_RH_ORGANIZATION_ID}
+  auto-attach: True
+
+yum_repos:
+  epel:
+    baseurl: https://mirror.in2p3.fr/pub/epel/9/Everything/$basearch/
+    enabled: true
+    failovermethod: priority
+    gpgcheck: true
+    gpgkey: http://download.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9
+    name: Extra Packages for Enterprise Linux 9 - Release
+
+package_upgrade: true
+
+packages:
+- zsh
+- podman
+- buildah
+- skopeo
+- jq
+- curl
+- vim-enhanced
+- git
+- bzip2
+- tmux
+- htop
+- iotop
+- mkpasswd
+- rclone
+
+write_files:
+- path: /etc/dnf/dnf.conf
+  content: |
+    [main]
+    best=True
+    skip_if_unavailable=True
+    install_weak_deps=False
+  owner: root:root
+  permissions: '0644'
+# Enable sudo without password
+- path: /etc/sudoers.d/root
+  content: |
+    root    ALL=(ALL)       ALL
+  permissions: '0440'
+  append: false
+# Enable sudo without password
+- path: /etc/sudoers.d/%wheel
+  content: |
+    %wheel  ALL=(ALL)       NOPASSWD: ALL
+  permissions: '0440'
+  append: false
+
+users:
+- name: ${CLOUD_INIT_ADMIN_USERNAME}
+  gecos: Admin
+  shell: /bin/bash
+  primary_group: wheel
+  lock_passwd: false
+  # mkpasswd -m sha512crypt
+  passwd: ${CLOUD_INIT_ADMIN_PASSWORD}
+  ssh_authorized_keys:
+  - ${CLOUD_INIT_ADMIN_SSH_KEY}

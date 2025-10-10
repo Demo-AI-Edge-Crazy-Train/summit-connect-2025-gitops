@@ -7,7 +7,7 @@ if [[ "$UID" -ne 0 ]]; then
   exit 1
 fi
 
-if [ "$#" -lt 4 ]; then
+if [ "$#" -lt 3 ]; then
   echo "Usage: $0 <ami-image-name> <aws-bucket-name> <aws-region>"
   exit 1
 fi
@@ -27,13 +27,19 @@ mkdir -p $temp_dir/{output,aws}
 trap 'rm -rf "$temp_dir"' EXIT
 
 declare -a PODMAN_ARGS=( --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t -v /var/lib/containers/storage:/var/lib/containers/storage -v $temp_dir/output:/output )
-declare -a BOOTC_IMAGE_BUILDER_ARGS=( --type ami "$TARGET_IMAGE" --aws-ami-name "$AMI_IMAGE_NAME" --aws-bucket-name "$AWS_BUCKET_NAME" --aws-region "$AWS_REGION" )
-if [ -n "$AWS_CONFIG_FILE" ] && [ -f "$AWS_CONFIG_FILE" ] && [ -n "$AWS_SHARED_CREDENTIALS_FILE" ] && [ -f "$AWS_SHARED_CREDENTIALS_FILE" ]; then
+declare -a BOOTC_IMAGE_BUILDER_ARGS=( --type ami --aws-ami-name "$AMI_IMAGE_NAME" --aws-bucket "$AWS_BUCKET_NAME" --aws-region "$AWS_REGION" )
+
+if [ -n "${AWS_CONFIG_FILE:-}" ] && [ -f "$AWS_CONFIG_FILE" ] && [ -n "${AWS_SHARED_CREDENTIALS_FILE:-}" ] && [ -f "$AWS_SHARED_CREDENTIALS_FILE" ]; then
   echo "Using AWS config file $AWS_CONFIG_FILE"
   echo "Using AWS shared credentials file $AWS_SHARED_CREDENTIALS_FILE"
   cp "$AWS_CONFIG_FILE" "$temp_dir/aws/config"
   cp "$AWS_SHARED_CREDENTIALS_FILE" "$temp_dir/aws/credentials"
   PODMAN_ARGS+=( "-v" "$temp_dir/aws:/root/.aws:ro" )
+elif [ -d "$HOME/.aws" ]; then
+  echo "Using AWS config from $HOME/.aws"
+  PODMAN_ARGS+=( "-v" "$HOME/.aws:/root/.aws:ro" )
+else
+  echo "Warning: No AWS config or credentials found, make sure to double check your setup!"
 fi
 
 PODMAN_ARGS+=( "-v" "$temp_dir/output:/output" )

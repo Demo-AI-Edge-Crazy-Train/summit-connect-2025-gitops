@@ -11,18 +11,25 @@ provider "aws" {
   region = "eu-west-3"
 }
 
-provider "aws" {
-  region = "us-east-1"
-  alias  = "aws-us"
+variable "tag_name" {
+  type    = string
+  default = "crazy-train-lab"
 }
 
-data "aws_ami" "fedora" {
-  provider    = aws.aws-us
+variable "route53_zone" {
+  type = string
+}
+
+variable "s3_bucket_name" {
+  type = string
+}
+
+data "aws_ami" "rhel" {
   most_recent = true
 
   filter {
     name   = "name"
-    values = ["Fedora-Cloud-Base-36*x86_64-hvm-*-gp2-*"]
+    values = ["RHEL-9.6.0_HVM-*-arm64-*-Hourly2-GP3"]
   }
 
   filter {
@@ -30,18 +37,12 @@ data "aws_ami" "fedora" {
     values = ["hvm"]
   }
 
-  owners = ["125523088429"] # Fedora
-}
-
-resource "aws_ami_copy" "lab_ami" {
-  name              = "Fedora-Cloud-Base-36.x86_64-hvm-eu-west-3-gp2-0"
-  description       = "A copy of Fedora-Cloud-Base-36-20221013.0.x86_64-hvm-us-east-1-gp2-0"
-  source_ami_id     = data.aws_ami.fedora.id
-  source_ami_region = "us-east-1"
-
-  tags = {
-    Name = "crazy-train-edge-lab"
+  filter {
+    name   = "architecture"
+    values = ["arm64"]
   }
+
+  owners = ["309956199498"] # amazon
 }
 
 resource "aws_vpc" "lab_vpc" {
@@ -50,7 +51,7 @@ resource "aws_vpc" "lab_vpc" {
   enable_dns_hostnames = true
 
   tags = {
-    Name = "crazy-train-edge-lab"
+    Name = var.tag_name
   }
 }
 
@@ -60,7 +61,7 @@ resource "aws_subnet" "lab_subnet" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "crazy-train-edge-lab"
+    Name = var.tag_name
   }
 }
 
@@ -73,7 +74,7 @@ resource "aws_route_table" "lab_route" {
   }
 
   tags = {
-    Name = "crazy-train-edge-lab"
+    Name = var.tag_name
   }
 }
 
@@ -82,13 +83,21 @@ resource "aws_route_table_association" "lab_rta" {
   route_table_id = aws_route_table.lab_route.id
 }
 
-resource "aws_security_group" "lab_podman" {
+resource "aws_security_group" "lab_bastion" {
   vpc_id = aws_vpc.lab_vpc.id
 
   ingress {
     description = "Incoming SSH connection"
     from_port   = 22
     to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Incoming HTTP connection"
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -102,33 +111,33 @@ resource "aws_security_group" "lab_podman" {
   }
 
   tags = {
-    Name = "crazy-train-edge-lab"
+    Name = var.tag_name
   }
 }
 
 resource "aws_internet_gateway" "lab_gw" {
   vpc_id = aws_vpc.lab_vpc.id
   tags = {
-    Name = "crazy-train-edge-lab"
+    Name = var.tag_name
   }
 }
 
 resource "aws_key_pair" "admin" {
-  key_name   = "lab-podman-nmasse@redhat.com"
+  key_name   = "crazy-train-lab"
   public_key = file("~/.ssh/id_ed25519.pub")
   tags = {
-    Name = "crazy-train-edge-lab"
+    Name = var.tag_name
   }
 }
 
-resource "aws_instance" "lab_podman" {
-  ami                         = aws_ami_copy.lab_ami.id
-  instance_type               = "m5a.4xlarge"
+resource "aws_instance" "lab_rhel" {
+  ami                         = data.aws_ami.rhel.id
+  instance_type               = "m6g.large"
   key_name                    = aws_key_pair.admin.key_name
   subnet_id                   = aws_subnet.lab_subnet.id
   depends_on                  = [aws_internet_gateway.lab_gw]
-  vpc_security_group_ids      = [aws_security_group.lab_podman.id]
-  user_data                   = filebase64("cloud-init/user-data.yaml.gz")
+  vpc_security_group_ids      = [aws_security_group.lab_rhel.id]
+  user_data                   = filebase64("cloud-init/user-data.yaml")
   associate_public_ip_address = true
 
   credit_specification {
@@ -140,10 +149,32 @@ resource "aws_instance" "lab_podman" {
   }
 
   tags = {
-    Name = "crazy-train-edge-lab"
+    Name = var.tag_name
   }
 }
 
+resource "aws_eip" "lab_eip" {
+  instance = aws_instance.lab_rhel.id
+  vpc      = true
+
+  tags = {
+    Name = var.tag_name
+  }
+}
+
+data "aws_route53_zone" "lab_zone" {
+  name         = var.route53_zone
+  private_zone = false
+}
+
+resource "aws_route53_record" "os_builder_a_record" {
+  zone_id = data.aws_route53_zone.lab_zone.zone_id
+  name    = "crazy-train-lab.${var.route53_zone}"
+  type    = "A"
+  ttl     = "300"
+  records = [aws_eip.lab_eip.public_ip]
+}
+
 output "public_ip" {
-  value = aws_instance.lab_podman.public_ip
+  value = aws_instance.lab_rhel.public_ip
 }

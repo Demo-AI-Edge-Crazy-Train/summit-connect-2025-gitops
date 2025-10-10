@@ -2,7 +2,6 @@
 
 ## Prepare the Edge Device image
 
-On a RHEL 9 aarch64 machine with Podman installed:
 
 ```sh
 cd bootc
@@ -17,7 +16,7 @@ Pre-requisites: Libvirt on Fedora
 
 ```sh
 cd cloud-init
-./install-libvirt.sh
+./dev.sh
 ```
 
 ## Installation on AWS EC2
