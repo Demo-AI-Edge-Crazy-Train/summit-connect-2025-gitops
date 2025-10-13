@@ -222,8 +222,8 @@ data "aws_ami" "bootc_ami" {
 }
 
 resource "aws_subnet" "edge_devices" {
-  vpc_id     = aws_vpc.common.id
-  cidr_block = "172.16.20.0/24"
+  vpc_id                  = aws_vpc.common.id
+  cidr_block              = "172.16.20.0/24"
   map_public_ip_on_launch = false
 
   tags = {
@@ -261,7 +261,7 @@ resource "aws_nat_gateway" "edge_devices" {
 }
 
 resource "aws_eip" "edge_devices" {
-  vpc      = true
+  vpc = true
 
   tags = {
     Name = "${var.tag_name}-edge-devices"
