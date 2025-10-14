@@ -32,6 +32,14 @@ packages:
 - iotop
 - mkpasswd
 - rclone
+- haproxy
+
+# Enables and starts services
+systemd:
+  units:
+  - name: haproxy.service
+    enabled: true
+    state: started
 
 write_files:
 # Avoid installing weak dependencies with dnf
@@ -55,6 +63,9 @@ write_files:
     %wheel  ALL=(ALL)       NOPASSWD: ALL
   permissions: '0440'
   append: false
+# HAProxy configuration
+- path: /etc/haproxy/haproxy.cfg
+  content: ${jsonencode(haproxy_cfg)}
 
 users:
 - name: ${CLOUD_INIT_ADMIN_USERNAME}

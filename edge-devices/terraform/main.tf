@@ -130,6 +130,14 @@ resource "aws_security_group" "lab_bastion" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Incoming HTTP connection"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     description = "Outgoing connections"
     from_port   = 0
@@ -143,6 +151,15 @@ resource "aws_security_group" "lab_bastion" {
   }
 }
 
+data "template_file" "bastion_user_data" {
+  template = file("${path.module}/cloud-init/user-data.yaml")
+  vars = {
+    haproxy_cfg = templatefile("${path.module}/cloud-init/haproxy.cfg", {
+      nodes = { for i in range(var.machine_count) : "user${i + 1}" => cidrhost(aws_subnet.edge_devices.cidr_block, 101 + i) }
+    })
+  }
+}
+
 resource "aws_instance" "lab_bastion" {
   ami                         = data.aws_ami.rhel.id
   instance_type               = "m6g.large"
@@ -150,7 +167,7 @@ resource "aws_instance" "lab_bastion" {
   subnet_id                   = aws_subnet.common.id
   depends_on                  = [aws_internet_gateway.common]
   vpc_security_group_ids      = [aws_security_group.lab_bastion.id]
-  user_data                   = filebase64("cloud-init/user-data.yaml")
+  user_data                   = data.template_file.bastion_user_data.rendered
   associate_public_ip_address = true
 
   credit_specification {
@@ -182,7 +199,7 @@ data "aws_route53_zone" "lab_zone" {
 
 resource "aws_route53_record" "lab_bastion" {
   zone_id = data.aws_route53_zone.lab_zone.zone_id
-  name    = "crazy-train-lab.${var.route53_zone}"
+  name    = "*.crazy-train-lab.${var.route53_zone}"
   type    = "A"
   ttl     = "300"
   records = [aws_eip.lab_bastion.public_ip]
@@ -279,6 +296,14 @@ resource "aws_security_group" "edge_device" {
     cidr_blocks = ["172.16.0.0/16"]
   }
 
+  ingress {
+    description = "Incoming HTTP connection"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["172.16.0.0/16"]
+  }
+
   egress {
     description = "Outgoing connections"
     from_port   = 0
@@ -299,6 +324,8 @@ resource "aws_instance" "edge_device" {
   vpc_security_group_ids      = [aws_security_group.edge_device.id]
   associate_public_ip_address = false
   depends_on                  = [aws_internet_gateway.common]
+  count                       = var.machine_count
+  private_ip                  = cidrhost(aws_subnet.edge_devices.cidr_block, 101 + count.index)
 
   credit_specification {
     cpu_credits = "unlimited"
@@ -311,8 +338,6 @@ resource "aws_instance" "edge_device" {
   tags = {
     Name = "${var.tag_name}-edge-device-${count.index + 1}"
   }
-
-  count = var.machine_count
 }
 
 output "edge_devices_ip" {
