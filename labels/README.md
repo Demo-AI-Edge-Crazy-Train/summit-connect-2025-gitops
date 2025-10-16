@@ -1,5 +1,20 @@
 # Generate labels with Libre Office
 
+## Prerequisites
+
+Export the users from the secret to a CSV file.
+
+```sh
+SECRET_NAME="${SECRET_NAME#secret/}"
+SECRET_NAME="$(oc get secret -n openshift-config -o name --sort-by=.metadata.creationTimestamp --no-headers | grep ^secret/htpasswd | tail -n 1)"
+oc extract secret/$SECRET_NAME --to=- -n openshift-config --keys=users.txt 2>/dev/null > users/users.txt
+echo "username,password" > users/users.csv
+tr : , < users/users.txt >> users/users.csv
+sed -ir 's/^$//; T; d' users/users.csv
+```
+
+## Procedure
+
 If not already done, install the "database" component of Libre Office.
 
 ```sh

@@ -52,27 +52,10 @@ echo "The master key is ${MASTER_KEY}. Save it somewhere safe!"
 helm template auth . --set masterKey=${MASTER_KEY} | oc apply -f -
 ```
 
-Get the name of the generated secret:
+## Configure OpenShift Authentication
 
 ```sh
-oc get secret -n openshift-config |grep ^htpasswd
-```
-
-Update oauth/cluster with:
-
-```yaml
-apiVersion: config.openshift.io/v1
-kind: OAuth
-metadata:
-  name: cluster
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false
-spec:
-  identityProviders:
-  - htpasswd:
-      fileData:
-        name: htpasswd-
-    mappingMethod: claim
-    name: WorkshopUser
-    type: HTPasswd
+SECRET_NAME="$(oc get secret -n openshift-config -o name --sort-by=.metadata.creationTimestamp --no-headers | grep ^secret/htpasswd | tail -n 1)"
+SECRET_NAME="${SECRET_NAME#secret/}"
+oc patch oauth/cluster --type='json' -p='[{"op":"add","path":"/spec/identityProviders/-","value":{"htpasswd":{"fileData":{"name":"'$SECRET_NAME'"}},"mappingMethod":"claim","name":"WorkshopUser","type":"HTPasswd"}}]'
 ```
