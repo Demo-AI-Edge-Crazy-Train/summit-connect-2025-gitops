@@ -5,9 +5,10 @@ set -Eeuo pipefail
 
 # Enable EPEL and Ansible AAP repos
 dnf config-manager --enable ansible-automation-platform-2.5-for-rhel-9-$(arch)-rpms
+dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
 
 # Install packages
-dnf install -y flightctl-agent
+dnf install -y flightctl-agent cockpit cockpit-podman yq
 dnf clean all
 
 # Prepare the system for blueprint customizations
@@ -26,6 +27,9 @@ set -Eeuo pipefail
 
 # Enable systemd services and sockets
 systemctl enable flightctl-agent.service
+
+# Enable Cockpit
+systemctl enable cockpit.socket
 
 # Make sure the flightctl-agent is the only one that can apply updates
 systemctl mask bootc-fetch-apply-updates.timer
