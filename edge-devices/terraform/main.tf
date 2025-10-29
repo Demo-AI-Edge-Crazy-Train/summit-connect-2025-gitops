@@ -4,11 +4,15 @@ terraform {
       source  = "hashicorp/aws"
       version = "4.34.0"
     }
+    cloudinit = {
+      source  = "hashicorp/cloudinit"
+      version = "~> 2.3"
+    }
   }
 }
 
 provider "aws" {
-  region = "eu-west-3"
+  region = "eu-central-1"
 }
 
 ##
@@ -160,6 +164,16 @@ data "template_file" "bastion_user_data" {
   }
 }
 
+data "cloudinit_config" "bastion_config" {
+  gzip          = true
+  base64_encode = true
+
+  part {
+    content_type = "text/cloud-config"
+    content      = data.template_file.bastion_user_data.rendered
+  }
+}
+
 resource "aws_instance" "lab_bastion" {
   ami                         = data.aws_ami.rhel.id
   instance_type               = "m6g.large"
@@ -167,7 +181,7 @@ resource "aws_instance" "lab_bastion" {
   subnet_id                   = aws_subnet.common.id
   depends_on                  = [aws_internet_gateway.common]
   vpc_security_group_ids      = [aws_security_group.lab_bastion.id]
-  user_data                   = data.template_file.bastion_user_data.rendered
+  user_data                   = data.cloudinit_config.bastion_config.rendered
   associate_public_ip_address = true
 
   credit_specification {
@@ -326,6 +340,12 @@ resource "aws_instance" "edge_device" {
   depends_on                  = [aws_internet_gateway.common]
   count                       = var.machine_count
   private_ip                  = cidrhost(aws_subnet.edge_devices.cidr_block, 101 + count.index)
+  
+  metadata_options {
+    instance_metadata_tags = "enabled"
+    http_endpoint = "enabled" 
+    http_tokens   = "required"
+  }
 
   credit_specification {
     cpu_credits = "unlimited"
@@ -337,6 +357,7 @@ resource "aws_instance" "edge_device" {
 
   tags = {
     Name = "${var.tag_name}-edge-device-${count.index + 1}"
+    Fleet = "user${count.index + 1}"
   }
 }
 
